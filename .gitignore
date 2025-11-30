@@ -1,0 +1,49 @@
+# .gitignore for HTB Auto Pwn
+
+# Log files
+*.log
+htb_auto_*.log
+
+# Result files
+*.json
+htb_results_*.json
+
+# Temporary scan files
+/tmp/*.xml
+*.xml
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Credentials (if any stored during testing)
+credentials.txt
+passwords.txt
+
+# Downloaded files from exploitation
+downloads/
+loot/
+flags/
+
+# Backup files
+*.bak
+*.backup
