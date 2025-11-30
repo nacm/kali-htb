@@ -587,8 +587,71 @@ Examples:
             missing_tools.append(tool)
     
     if missing_tools:
-        logger.warning(f"{Colors.WARNING}Missing tools: {', '.join(missing_tools)}{Colors.ENDC}")
-        logger.warning("Some functionality may be limited. Install with: apt-get install <tool>")
+        logger.warning(f"{Colors.WARNING}Missing tools detected: {', '.join(missing_tools)}{Colors.ENDC}")
+        logger.warning(f"{Colors.WARNING}Some functionality may be limited without these tools.{Colors.ENDC}")
+        
+        # Prompt user to install missing tools
+        try:
+            response = input(f"\n{Colors.OKBLUE}Would you like to install missing tools now? (y/n): {Colors.ENDC}").strip().lower()
+            
+            if response == 'y' or response == 'yes':
+                logger.info(f"{Colors.OKBLUE}Installing missing tools...{Colors.ENDC}")
+                
+                # Check if running with sudo privileges
+                if os.geteuid() != 0:
+                    logger.warning(f"{Colors.WARNING}Installation requires root privileges.{Colors.ENDC}")
+                    logger.info(f"{Colors.OKBLUE}Attempting to use sudo...{Colors.ENDC}")
+                
+                try:
+                    # Update package list first
+                    logger.info(f"{Colors.OKBLUE}Updating package list...{Colors.ENDC}")
+                    update_cmd = ['sudo', 'apt-get', 'update'] if os.geteuid() != 0 else ['apt-get', 'update']
+                    subprocess.run(update_cmd, check=True)
+                    
+                    # Install missing tools
+                    install_cmd = ['sudo', 'apt-get', 'install', '-y'] if os.geteuid() != 0 else ['apt-get', 'install', '-y']
+                    install_cmd.extend(missing_tools)
+                    
+                    logger.info(f"{Colors.OKBLUE}Installing: {', '.join(missing_tools)}{Colors.ENDC}")
+                    result = subprocess.run(install_cmd, check=True)
+                    
+                    logger.info(f"{Colors.OKGREEN}✓ Successfully installed missing tools!{Colors.ENDC}")
+                    
+                    # Verify installation
+                    still_missing = []
+                    for tool in missing_tools:
+                        try:
+                            subprocess.run(['which', tool], capture_output=True, check=True)
+                        except:
+                            still_missing.append(tool)
+                    
+                    if still_missing:
+                        logger.warning(f"{Colors.WARNING}Failed to install: {', '.join(still_missing)}{Colors.ENDC}")
+                        logger.warning(f"{Colors.WARNING}Please install manually: sudo apt-get install {' '.join(still_missing)}{Colors.ENDC}")
+                    
+                except subprocess.CalledProcessError as e:
+                    logger.error(f"{Colors.FAIL}Installation failed: {e}{Colors.ENDC}")
+                    logger.error(f"{Colors.FAIL}Please install manually: sudo apt-get install {' '.join(missing_tools)}{Colors.ENDC}")
+                    response = input(f"\n{Colors.WARNING}Continue anyway? (y/n): {Colors.ENDC}").strip().lower()
+                    if response != 'y' and response != 'yes':
+                        logger.info("Exiting...")
+                        return
+                except PermissionError:
+                    logger.error(f"{Colors.FAIL}Permission denied. Please run with sudo or install tools manually.{Colors.ENDC}")
+                    response = input(f"\n{Colors.WARNING}Continue anyway? (y/n): {Colors.ENDC}").strip().lower()
+                    if response != 'y' and response != 'yes':
+                        logger.info("Exiting...")
+                        return
+            else:
+                logger.info(f"{Colors.OKBLUE}Continuing without installing missing tools...{Colors.ENDC}")
+                response = input(f"\n{Colors.WARNING}Continue with limited functionality? (y/n): {Colors.ENDC}").strip().lower()
+                if response != 'y' and response != 'yes':
+                    logger.info("Exiting...")
+                    return
+        
+        except KeyboardInterrupt:
+            logger.info(f"\n{Colors.WARNING}Operation cancelled by user.{Colors.ENDC}")
+            return
     
     # Run the automation
     autopwn = HTBAutoPwn(args.target, args.output)

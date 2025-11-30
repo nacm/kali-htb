@@ -117,10 +117,14 @@ if [ $MISSING -eq 0 ]; then
     echo "Example:"
     echo "  python3 htb_auto_pwn.py -t 10.10.10.100"
     echo "  python3 htb_auto_pwn.py -t 10.10.10.100 -o results.json -v"
+    echo ""
+    echo "Note: The tool can also automatically detect and install"
+    echo "      missing tools when you run it for the first time."
 else
     echo -e "${RED}[!] Some dependencies failed to install${NC}"
-    echo "Please install them manually:"
-    echo "  apt-get install <package-name>"
+    echo "Please install them manually or let the tool install them"
+    echo "automatically when you run it:"
+    echo "  python3 htb_auto_pwn.py -t <target_ip>"
 fi
 
 echo ""

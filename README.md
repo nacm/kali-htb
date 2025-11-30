@@ -67,6 +67,8 @@ sudo apt-get install -y \
     python3-pip
 ```
 
+**Note:** The script will automatically detect missing tools and prompt you to install them when you run it for the first time.
+
 ### Python Requirements
 
 Python 3.7 or higher is required. The script uses only standard library modules.
@@ -79,17 +81,14 @@ cd /Users/ahmednaseem/Documents/Codex_Dev/KaliHTB
 chmod +x htb_auto_pwn.py
 ```
 
-2. Verify all required tools are installed:
-```bash
-which nmap nikto gobuster smbclient curl sshpass lftp
-```
+2. On first run, the script will check for required tools and offer to install any missing ones automatically.
 
 ## 💻 Usage
 
 ### Basic Usage
 
 ```bash
-# Scan a target IP
+# Scan a target IP (will prompt to install missing tools if needed)
 python3 htb_auto_pwn.py -t 10.10.10.100
 
 # Scan with custom output file
@@ -97,6 +96,27 @@ python3 htb_auto_pwn.py -t 10.10.10.100 -o my_results.json
 
 # Verbose mode for detailed logging
 python3 htb_auto_pwn.py -t 10.10.10.100 -v
+```
+
+### Automatic Tool Installation
+
+When you run the script, it will:
+1. Check for all required tools (nmap, nikto, gobuster, etc.)
+2. If any tools are missing, prompt you to install them
+3. Automatically install missing tools with your confirmation
+4. Verify successful installation
+
+Example interaction:
+```bash
+$ python3 htb_auto_pwn.py -t 10.10.10.100
+[WARNING] Missing tools detected: nikto, gobuster
+[WARNING] Some functionality may be limited without these tools.
+
+Would you like to install missing tools now? (y/n): y
+[INFO] Installing missing tools...
+[INFO] Updating package list...
+[INFO] Installing: nikto, gobuster
+[INFO] ✓ Successfully installed missing tools!
 ```
 
 ### Command Line Options
@@ -270,8 +290,10 @@ Results saved to: htb_results_20251130_123456.json
 - Try with sudo: `sudo python3 htb_auto_pwn.py -t <target>`
 
 **Missing tools:**
-- Install missing tools: `sudo apt-get install <tool-name>`
+- The script will automatically detect and offer to install missing tools
+- If automatic installation fails, install manually: `sudo apt-get install <tool-name>`
 - Update package list: `sudo apt-get update`
+- You can continue with limited functionality if some tools are missing
 
 **Timeouts:**
 - Increase timeout values in the script

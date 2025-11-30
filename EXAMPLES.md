@@ -2,6 +2,39 @@
 
 This file contains example usage scenarios and expected outputs for the HTB Auto Pwn tool.
 
+## Example 0: First Run with Missing Tools
+
+### Command
+```bash
+python3 htb_auto_pwn.py -t 10.10.10.3
+```
+
+### Expected Interaction
+If you're missing tools, the script will automatically detect and offer to install them:
+
+```
+[WARNING] Missing tools detected: nikto, gobuster
+[WARNING] Some functionality may be limited without these tools.
+
+Would you like to install missing tools now? (y/n): y
+[INFO] Installing missing tools...
+[WARNING] Installation requires root privileges.
+[INFO] Attempting to use sudo...
+[INFO] Updating package list...
+[INFO] Installing: nikto, gobuster
+[INFO] ✓ Successfully installed missing tools!
+
+╔══════════════════════════════════════════════╗
+║   HTB Automated Flag Reveal System          ║
+║   Target: 10.10.10.3                        ║
+╚══════════════════════════════════════════════╝
+```
+
+### Options When Prompted
+- Enter `y` or `yes` to automatically install missing tools
+- Enter `n` or `no` to continue without installing (limited functionality)
+- Press `Ctrl+C` to cancel and exit
+
 ## Example 1: Basic Scan
 
 ### Command
