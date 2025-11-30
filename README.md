@@ -5,7 +5,9 @@ A comprehensive automated penetration testing tool for Hack The Box (HTB) machin
 ## 🎯 Features
 
 - **Automated Network Scanning**: Uses nmap for port discovery and service enumeration
+- **AI-Powered Analysis**: OpenAI integration for intelligent scan analysis and dynamic scanning (optional)
 - **Vulnerability Detection**: Identifies common security weaknesses across multiple protocols
+- **Dynamic Scanning Strategy**: Adjusts scan approach based on AI recommendations
 - **Automated Exploitation**: Attempts exploitation based on detected vulnerabilities
 - **Flag Extraction**: Automatically extracts and reports flags from various sources
 - **Comprehensive Logging**: Detailed logging of all activities
@@ -73,6 +75,39 @@ sudo apt-get install -y \
 
 Python 3.7 or higher is required. The script uses only standard library modules.
 
+**Optional: AI-Powered Analysis**
+
+For AI-powered intelligent analysis and dynamic scanning:
+
+**Quick Setup (Recommended):**
+```bash
+# Run the automated setup script
+./setup_ai.sh
+```
+
+**Manual Setup:**
+```bash
+# Install required libraries
+pip install openai python-dotenv
+
+# Create .env file with your API key
+cp .env.example .env
+nano .env  # Edit and add your actual API key
+```
+
+**Alternative: Environment Variable**
+```bash
+# Set your OpenAI API key
+export OPENAI_API_KEY='your-api-key-here'
+
+# Or add to your ~/.bashrc or ~/.zshrc for persistence
+echo 'export OPENAI_API_KEY="your-api-key-here"' >> ~/.bashrc
+```
+
+Get your API key from: https://platform.openai.com/api-keys
+
+**Note:** The `.env` file is automatically loaded and is included in `.gitignore` for security.
+
 ## 🚀 Installation
 
 1. Clone or download the script:
@@ -96,6 +131,12 @@ python3 htb_auto_pwn.py -t 10.10.10.100 -o my_results.json
 
 # Verbose mode for detailed logging
 python3 htb_auto_pwn.py -t 10.10.10.100 -v
+
+# Enable AI-powered analysis for intelligent scanning
+python3 htb_auto_pwn.py -t 10.10.10.100 --ai
+
+# Combine AI with verbose output
+python3 htb_auto_pwn.py -t 10.10.10.100 --ai -v -o results.json
 ```
 
 ### Automatic Tool Installation
@@ -125,7 +166,37 @@ Would you like to install missing tools now? (y/n): y
 -t, --target    Target IP address or hostname (required)
 -o, --output    Output file for results in JSON format
 -v, --verbose   Enable verbose output for debugging
+--ai            Enable AI-powered analysis (requires OPENAI_API_KEY)
 ```
+
+### AI-Powered Features
+
+When enabled with `--ai`, the tool leverages OpenAI's GPT-4 to:
+
+1. **Analyze Scan Results**: Intelligently interprets nmap output to identify promising attack vectors
+2. **Dynamic Scanning**: Performs targeted scans on priority services based on AI recommendations
+3. **Vulnerability Assessment**: Identifies potential CVEs and vulnerability types from service versions
+4. **Exploitation Strategy**: Suggests optimal exploitation order and specific tools to use
+5. **Attack Vector Prioritization**: Ranks ports and services by likelihood of successful exploitation
+6. **Detailed Exploit Suggestions**: For each vulnerability, AI provides:
+   - Specific exploit names and types (Metasploit, manual, searchsploit)
+   - Exact commands to run
+   - CVE numbers where applicable
+   - Success probability estimates
+   - Step-by-step manual exploitation guides
+   - Recommended tools and cautions
+
+**AI Output in Terminal:**
+- All AI prompts are displayed before sending to OpenAI
+- Full AI responses are shown in the terminal and logged
+- Formatted summaries with color-coded sections
+- Exploit suggestions displayed for each found vulnerability
+
+Example AI insights:
+- \"SSH version appears outdated, recommend checking for CVE-2018-15473\"
+- \"Web server running Apache 2.4.29 - check for path traversal vulnerabilities\"
+- \"Priority ports: 445 (SMB) has highest chance of exploitation\"
+- \"Recommended: Run enum4linux on SMB, then try EternalBlue exploit\"
 
 ## 📊 Output
 
@@ -150,7 +221,19 @@ Results are saved in JSON format containing:
     "os": "...",
     "vulnerabilities": [...]
   },
+  "ai_analysis": {
+    "attack_vectors": [...],
+    "priority_ports": [...],
+    "vulnerabilities": [...],
+    "strategy": "aggressive/targeted/stealth",
+    "reasoning": "..."
+  },
   "vulnerabilities": [...],
+  "exploitation_strategy": {
+    "exploitation_order": [...],
+    "commands": [...],
+    "notes": [...]
+  },
   "flags": [
     {
       "flag": "HTB{...}",
@@ -172,8 +255,19 @@ Detailed logs are saved to `htb_auto_YYYYMMDD_HHMMSS.log` including:
 ## 🔍 How It Works
 
 ### Phase 1: Network Scanning
-1. **Quick Scan**: Fast scan of top 100 ports to identify open services
-2. **Detailed Scan**: Deep scan with version detection, OS fingerprinting, and vulnerability scripts
+1. **Quick Scan**: Fast scan of top 100 ports to identify open services (1-2 minutes)
+   - Shows progress updates during scanning
+   - Provides connectivity diagnostics if scan fails
+2. **Detailed Scan**: Deep scan with version detection, OS fingerprinting, and vulnerability scripts (5-10 minutes)
+   - Real-time progress indicators
+   - Automatic partial result parsing if timeout occurs
+   - Detailed error messages with actionable suggestions
+
+### Phase 1.5: AI Analysis (Optional)
+1. **Intelligent Analysis**: AI examines all discovered services and versions
+2. **Attack Vector Identification**: Identifies most promising exploitation paths
+3. **Dynamic Targeted Scanning**: Runs additional focused scans on priority services
+4. **Vulnerability Mapping**: Correlates service versions with known CVEs
 
 ### Phase 2: Vulnerability Detection
 1. Parse nmap results for known vulnerabilities
@@ -296,14 +390,24 @@ Results saved to: htb_results_20251130_123456.json
 - You can continue with limited functionality if some tools are missing
 
 **Timeouts:**
-- Increase timeout values in the script
-- Check network connectivity
-- Target may be rate-limiting
+- The script will automatically attempt to parse partial results if a timeout occurs
+- Check network connectivity: `ping <target>`
+- Target may be rate-limiting or heavily filtered
+- Try increasing timeout values in the script for very slow targets
+- The script provides manual command suggestions when timeouts occur
 
 **No flags found:**
 - Some machines require manual exploitation
 - Check log files for clues
 - Review JSON output for detailed scan results
+- Try running with `--ai` flag for intelligent recommendations
+
+**AI-related issues:**
+- **"AI analysis disabled"**: Install OpenAI library with `pip install openai`
+- **"OPENAI_API_KEY not set"**: Set environment variable `export OPENAI_API_KEY='your-key'`
+- **"AI analysis failed"**: Check API key validity and internet connectivity
+- **Rate limits**: OpenAI API has rate limits; wait a moment and retry
+- **Cost concerns**: AI features use GPT-4 API which incurs costs (~$0.01-0.05 per scan)
 
 ## 📚 Resources
 
@@ -311,6 +415,7 @@ Results saved to: htb_results_20251130_123456.json
 - [Nmap Documentation](https://nmap.org/docs.html)
 - [Kali Linux Tools](https://www.kali.org/tools/)
 - [OWASP Testing Guide](https://owasp.org/www-project-web-security-testing-guide/)
+- [OpenAI API Documentation](https://platform.openai.com/docs/)
 
 ## 📄 License
 

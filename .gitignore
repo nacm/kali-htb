@@ -39,6 +39,11 @@ Thumbs.db
 credentials.txt
 passwords.txt
 
+# Environment variables and API keys
+.env
+.env.local
+.env.*.local
+
 # Downloaded files from exploitation
 downloads/
 loot/

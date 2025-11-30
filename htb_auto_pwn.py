@@ -2,6 +2,7 @@
 """
 HTB Automated Flag Reveal System
 Automated network scanning, vulnerability detection, and exploitation
+with AI-powered dynamic scanning
 """
 
 import subprocess
@@ -14,6 +15,23 @@ import logging
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 import xml.etree.ElementTree as ET
+
+# Load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    load_dotenv()  # Load .env file if present
+    DOTENV_AVAILABLE = True
+except ImportError:
+    DOTENV_AVAILABLE = False
+
+# OpenAI integration (optional)
+try:
+    from openai import OpenAI
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+    logger = logging.getLogger(__name__)
+    logger.debug("OpenAI module not available. Install with: pip install openai")
 
 # Configure logging
 logging.basicConfig(
@@ -40,16 +58,335 @@ class Colors:
     UNDERLINE = '\033[4m'
 
 
+class AIAnalyzer:
+    """AI-powered analysis of network scan results"""
+    
+    def __init__(self, api_key: Optional[str] = None, verbose: bool = False):
+        self.api_key = api_key or os.getenv('OPENAI_API_KEY')
+        self.client = None
+        self.enabled = False
+        self.verbose = verbose
+        
+        if OPENAI_AVAILABLE and self.api_key:
+            try:
+                self.client = OpenAI(api_key=self.api_key)
+                self.enabled = True
+                logger.info(f"{Colors.OKGREEN}AI-powered analysis enabled{Colors.ENDC}")
+            except Exception as e:
+                logger.warning(f"{Colors.WARNING}AI initialization failed: {e}{Colors.ENDC}")
+        elif not OPENAI_AVAILABLE:
+            logger.info(f"{Colors.OKCYAN}AI analysis disabled. Install with: pip install openai{Colors.ENDC}")
+        else:
+            logger.info(f"{Colors.OKCYAN}AI analysis disabled. Set OPENAI_API_KEY environment variable to enable.{Colors.ENDC}")
+    
+    def analyze_scan_results(self, scan_results: Dict) -> Dict:
+        """Analyze scan results and provide intelligent recommendations"""
+        if not self.enabled:
+            return {'recommendations': [], 'strategy': 'standard', 'priority_ports': []}
+        
+        try:
+            # Prepare scan data for AI analysis
+            scan_summary = self._prepare_scan_summary(scan_results)
+            
+            prompt = f"""You are a penetration testing expert analyzing network scan results.
+
+Scan Results:
+{json.dumps(scan_summary, indent=2)}
+
+Based on these results:
+1. Identify the most promising attack vectors
+2. Suggest specific scanning strategies for each service
+3. Prioritize ports/services for deeper investigation
+4. Recommend additional nmap scripts or tools to use
+5. Identify potential vulnerabilities based on service versions
+
+Provide your response in JSON format:
+{{
+  "attack_vectors": ["list of potential attack methods"],
+  "priority_ports": ["list of port numbers to focus on"],
+  "recommended_scans": {{
+    "port_number": "specific nmap command or tool recommendation"
+  }},
+  "vulnerabilities": ["list of potential CVEs or vulnerability types"],
+  "strategy": "aggressive/targeted/stealth",
+  "reasoning": "brief explanation of recommendations"
+}}"""
+            
+            logger.info(f"{Colors.OKCYAN}🤖 AI analyzing scan results...{Colors.ENDC}")
+            
+            # Display the prompt being sent to AI
+            logger.info(f"\n{Colors.HEADER}{'='*60}{Colors.ENDC}")
+            logger.info(f"{Colors.HEADER}AI PROMPT - Scan Analysis{Colors.ENDC}")
+            logger.info(f"{Colors.HEADER}{'='*60}{Colors.ENDC}")
+            logger.info(f"{Colors.OKCYAN}{prompt}{Colors.ENDC}")
+            logger.info(f"{Colors.HEADER}{'='*60}{Colors.ENDC}\n")
+            
+            response = self.client.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "You are an expert penetration tester specializing in HTB machines. Provide concise, actionable security analysis."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                max_tokens=1500
+            )
+            
+            ai_response = response.choices[0].message.content
+            
+            # Display the AI response
+            logger.info(f"{Colors.HEADER}{'='*60}{Colors.ENDC}")
+            logger.info(f"{Colors.HEADER}AI RESPONSE - Scan Analysis{Colors.ENDC}")
+            logger.info(f"{Colors.HEADER}{'='*60}{Colors.ENDC}")
+            logger.info(f"{Colors.OKGREEN}{ai_response}{Colors.ENDC}")
+            logger.info(f"{Colors.HEADER}{'='*60}{Colors.ENDC}\n")
+            
+            # Extract JSON from response (handle markdown code blocks)
+            json_match = re.search(r'```(?:json)?\s*({.*?})\s*```', ai_response, re.DOTALL)
+            if json_match:
+                ai_response = json_match.group(1)
+            
+            analysis = json.loads(ai_response)
+            
+            logger.info(f"{Colors.OKGREEN}✓ AI analysis complete{Colors.ENDC}")
+            logger.info(f"{Colors.OKBLUE}Strategy: {analysis.get('strategy', 'standard')}{Colors.ENDC}")
+            logger.info(f"{Colors.OKBLUE}Reasoning: {analysis.get('reasoning', 'N/A')}{Colors.ENDC}")
+            
+            return analysis
+            
+        except json.JSONDecodeError as e:
+            logger.warning(f"{Colors.WARNING}Failed to parse AI response: {e}{Colors.ENDC}")
+            logger.debug(f"Raw AI response: {ai_response}")
+            return {'recommendations': [], 'strategy': 'standard', 'priority_ports': []}
+        except Exception as e:
+            logger.warning(f"{Colors.WARNING}AI analysis failed: {e}{Colors.ENDC}")
+            return {'recommendations': [], 'strategy': 'standard', 'priority_ports': []}
+    
+    def _prepare_scan_summary(self, scan_results: Dict) -> Dict:
+        """Prepare a concise summary of scan results for AI analysis"""
+        summary = {
+            'host': scan_results.get('host', 'unknown'),
+            'os': scan_results.get('os', 'unknown'),
+            'ports': []
+        }
+        
+        for port_info in scan_results.get('ports', []):
+            port_summary = {
+                'port': port_info.get('port'),
+                'service': port_info.get('service'),
+                'version': port_info.get('version'),
+                'extrainfo': port_info.get('extrainfo'),
+                'scripts': [s.get('id') for s in port_info.get('scripts', [])]
+            }
+            summary['ports'].append(port_summary)
+        
+        return summary
+    
+    def suggest_exploitation_strategy(self, vulnerabilities: List[Dict], target: str) -> Dict:
+        """Get AI recommendations for exploitation strategy"""
+        if not self.enabled or not vulnerabilities:
+            return {'exploitation_order': [], 'notes': []}
+        
+        try:
+            prompt = f"""You are a penetration testing expert. Based on these detected vulnerabilities, suggest the most effective exploitation strategy:
+
+Target: {target}
+Vulnerabilities:
+{json.dumps(vulnerabilities, indent=2)}
+
+Provide exploitation strategy in JSON format:
+{{
+  "exploitation_order": ["ordered list of vulnerabilities to exploit"],
+  "commands": ["specific commands or tools to use"],
+  "notes": ["important considerations or warnings"],
+  "expected_difficulty": "easy/medium/hard"
+}}"""
+            
+            # Display exploitation strategy prompt
+            logger.info(f"\n{Colors.HEADER}{'='*60}{Colors.ENDC}")
+            logger.info(f"{Colors.HEADER}AI PROMPT - Exploitation Strategy{Colors.ENDC}")
+            logger.info(f"{Colors.HEADER}{'='*60}{Colors.ENDC}")
+            logger.info(f"{Colors.OKCYAN}{prompt}{Colors.ENDC}")
+            logger.info(f"{Colors.HEADER}{'='*60}{Colors.ENDC}\n")
+            
+            response = self.client.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "You are an expert penetration tester. Provide practical exploitation guidance."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                max_tokens=1000
+            )
+            
+            ai_response = response.choices[0].message.content
+            
+            # Display exploitation strategy response
+            logger.info(f"{Colors.HEADER}{'='*60}{Colors.ENDC}")
+            logger.info(f"{Colors.HEADER}AI RESPONSE - Exploitation Strategy{Colors.ENDC}")
+            logger.info(f"{Colors.HEADER}{'='*60}{Colors.ENDC}")
+            logger.info(f"{Colors.OKGREEN}{ai_response}{Colors.ENDC}")
+            logger.info(f"{Colors.HEADER}{'='*60}{Colors.ENDC}\n")
+            
+            json_match = re.search(r'```(?:json)?\s*({.*?})\s*```', ai_response, re.DOTALL)
+            if json_match:
+                ai_response = json_match.group(1)
+            
+            strategy = json.loads(ai_response)
+            
+            # Display parsed strategy in formatted way
+            logger.info(f"{Colors.BOLD}📋 Exploitation Strategy Summary:{Colors.ENDC}")
+            logger.info(f"{Colors.OKBLUE}Difficulty: {strategy.get('expected_difficulty', 'unknown').upper()}{Colors.ENDC}")
+            
+            if strategy.get('exploitation_order'):
+                logger.info(f"\n{Colors.OKBLUE}Recommended Order:{Colors.ENDC}")
+                for idx, step in enumerate(strategy['exploitation_order'], 1):
+                    logger.info(f"  {idx}. {step}")
+            
+            if strategy.get('commands'):
+                logger.info(f"\n{Colors.OKBLUE}Suggested Commands:{Colors.ENDC}")
+                for cmd in strategy['commands']:
+                    logger.info(f"  $ {cmd}")
+            
+            if strategy.get('notes'):
+                logger.info(f"\n{Colors.WARNING}Important Notes:{Colors.ENDC}")
+                for note in strategy['notes']:
+                    logger.info(f"  ⚠️  {note}")
+            
+            logger.info("")  # Empty line for spacing
+            
+            return strategy
+            
+        except Exception as e:
+            logger.debug(f"AI exploitation strategy failed: {e}")
+            return {'exploitation_order': [], 'notes': []}
+    
+    def suggest_exploits_for_vulnerability(self, vuln: Dict, target: str) -> Dict:
+        """Get specific exploit suggestions for a single vulnerability"""
+        if not self.enabled:
+            return {'exploits': [], 'tools': [], 'references': []}
+        
+        try:
+            vuln_type = vuln.get('type', 'unknown')
+            port = vuln.get('port', 'unknown')
+            description = vuln.get('description', '')
+            version = vuln.get('version', '')
+            
+            prompt = f"""You are an expert penetration tester. Suggest specific exploits for this vulnerability:
+
+Target: {target}
+Vulnerability Type: {vuln_type}
+Port: {port}
+Description: {description}
+Version: {version}
+
+Provide detailed exploitation recommendations in JSON format:
+{{
+  "exploits": [
+    {{
+      "name": "exploit name",
+      "type": "metasploit/manual/searchsploit",
+      "command": "exact command to run",
+      "cve": "CVE number if applicable",
+      "success_probability": "high/medium/low",
+      "description": "what this exploit does"
+    }}
+  ],
+  "tools": ["recommended tools like nmap, metasploit, searchsploit"],
+  "manual_steps": ["step by step manual exploitation if needed"],
+  "references": ["useful links or documentation"],
+  "cautions": ["warnings or things to be careful about"]
+}}"""
+            
+            # Display prompt
+            logger.info(f"\n{Colors.HEADER}{'='*60}{Colors.ENDC}")
+            logger.info(f"{Colors.HEADER}AI PROMPT - Exploit Suggestions for {vuln_type}{Colors.ENDC}")
+            logger.info(f"{Colors.HEADER}{'='*60}{Colors.ENDC}")
+            logger.info(f"{Colors.OKCYAN}{prompt}{Colors.ENDC}")
+            logger.info(f"{Colors.HEADER}{'='*60}{Colors.ENDC}\n")
+            
+            response = self.client.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "You are an expert penetration tester with deep knowledge of CVEs, exploits, and hacking tools."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                max_tokens=2000
+            )
+            
+            ai_response = response.choices[0].message.content
+            
+            # Display response
+            logger.info(f"{Colors.HEADER}{'='*60}{Colors.ENDC}")
+            logger.info(f"{Colors.HEADER}AI RESPONSE - Exploit Suggestions{Colors.ENDC}")
+            logger.info(f"{Colors.HEADER}{'='*60}{Colors.ENDC}")
+            logger.info(f"{Colors.OKGREEN}{ai_response}{Colors.ENDC}")
+            logger.info(f"{Colors.HEADER}{'='*60}{Colors.ENDC}\n")
+            
+            json_match = re.search(r'```(?:json)?\s*({.*?})\s*```', ai_response, re.DOTALL)
+            if json_match:
+                ai_response = json_match.group(1)
+            
+            exploit_data = json.loads(ai_response)
+            
+            # Display formatted exploit suggestions
+            logger.info(f"{Colors.BOLD}💥 Exploit Suggestions for {vuln_type} (Port {port}):{Colors.ENDC}\n")
+            
+            if exploit_data.get('exploits'):
+                for idx, exploit in enumerate(exploit_data['exploits'], 1):
+                    logger.info(f"{Colors.OKGREEN}[Exploit {idx}] {exploit.get('name', 'Unknown')}{Colors.ENDC}")
+                    logger.info(f"  Type: {exploit.get('type', 'N/A')}")
+                    if exploit.get('cve'):
+                        logger.info(f"  CVE: {exploit.get('cve')}")
+                    logger.info(f"  Success Probability: {exploit.get('success_probability', 'unknown').upper()}")
+                    logger.info(f"  Description: {exploit.get('description', 'N/A')}")
+                    if exploit.get('command'):
+                        logger.info(f"  Command: {Colors.OKCYAN}{exploit.get('command')}{Colors.ENDC}")
+                    logger.info("")
+            
+            if exploit_data.get('manual_steps'):
+                logger.info(f"{Colors.OKBLUE}Manual Exploitation Steps:{Colors.ENDC}")
+                for idx, step in enumerate(exploit_data['manual_steps'], 1):
+                    logger.info(f"  {idx}. {step}")
+                logger.info("")
+            
+            if exploit_data.get('tools'):
+                logger.info(f"{Colors.OKBLUE}Recommended Tools:{Colors.ENDC}")
+                for tool in exploit_data['tools']:
+                    logger.info(f"  • {tool}")
+                logger.info("")
+            
+            if exploit_data.get('cautions'):
+                logger.info(f"{Colors.WARNING}⚠️  Cautions:{Colors.ENDC}")
+                for caution in exploit_data['cautions']:
+                    logger.info(f"  • {caution}")
+                logger.info("")
+            
+            if exploit_data.get('references'):
+                logger.info(f"{Colors.OKCYAN}References:{Colors.ENDC}")
+                for ref in exploit_data['references']:
+                    logger.info(f"  • {ref}")
+                logger.info("")
+            
+            return exploit_data
+            
+        except Exception as e:
+            logger.warning(f"{Colors.WARNING}Failed to get exploit suggestions: {e}{Colors.ENDC}")
+            return {'exploits': [], 'tools': [], 'references': []}
+
+
 class NetworkScanner:
     """Network scanning functionality using nmap"""
     
-    def __init__(self, target: str):
+    def __init__(self, target: str, ai_analyzer: Optional['AIAnalyzer'] = None):
         self.target = target
         self.scan_results = {}
+        self.ai_analyzer = ai_analyzer
         
     def quick_scan(self) -> Dict:
         """Quick scan to discover open ports"""
         logger.info(f"{Colors.OKBLUE}Starting quick port scan on {self.target}{Colors.ENDC}")
+        logger.info(f"{Colors.OKBLUE}Scanning top 100 ports (this may take 1-2 minutes)...{Colors.ENDC}")
         
         try:
             cmd = [
@@ -57,14 +394,25 @@ class NetworkScanner:
                 '-oX', '/tmp/quick_scan.xml',
                 self.target
             ]
-            subprocess.run(cmd, check=True, capture_output=True, timeout=300)
+            result = subprocess.run(cmd, check=True, capture_output=True, timeout=300, text=True)
+            
+            if result.stderr:
+                logger.debug(f"Quick scan stderr: {result.stderr}")
             
             return self._parse_nmap_xml('/tmp/quick_scan.xml')
         except subprocess.TimeoutExpired:
-            logger.error("Quick scan timed out")
+            logger.error(f"{Colors.FAIL}Quick scan timed out after 5 minutes{Colors.ENDC}")
+            logger.error(f"{Colors.FAIL}Target {self.target} may be unreachable or heavily filtered{Colors.ENDC}")
+            logger.info(f"{Colors.WARNING}Try: ping {self.target} to verify connectivity{Colors.ENDC}")
+            return {}
+        except subprocess.CalledProcessError as e:
+            logger.error(f"{Colors.FAIL}Quick scan failed with error code {e.returncode}{Colors.ENDC}")
+            if e.stderr:
+                logger.error(f"{Colors.FAIL}Error details: {e.stderr.decode() if isinstance(e.stderr, bytes) else e.stderr}{Colors.ENDC}")
+            logger.info(f"{Colors.WARNING}Check if target is reachable: ping {self.target}{Colors.ENDC}")
             return {}
         except Exception as e:
-            logger.error(f"Quick scan failed: {e}")
+            logger.error(f"{Colors.FAIL}Quick scan failed: {e}{Colors.ENDC}")
             return {}
     
     def detailed_scan(self, ports: List[int]) -> Dict:
@@ -75,6 +423,8 @@ class NetworkScanner:
         
         port_list = ','.join(map(str, ports))
         logger.info(f"{Colors.OKBLUE}Running detailed scan on ports: {port_list}{Colors.ENDC}")
+        logger.info(f"{Colors.OKBLUE}Progress: Service detection, OS fingerprinting, and vulnerability scripts{Colors.ENDC}")
+        logger.info(f"{Colors.OKBLUE}This scan may take 5-10 minutes depending on target responsiveness...{Colors.ENDC}")
         
         try:
             cmd = [
@@ -84,15 +434,145 @@ class NetworkScanner:
                 '-oX', '/tmp/detailed_scan.xml',
                 self.target
             ]
-            subprocess.run(cmd, check=True, capture_output=True, timeout=600)
             
+            logger.info(f"{Colors.OKCYAN}[Progress] Running nmap with service detection and scripts...{Colors.ENDC}")
+            result = subprocess.run(cmd, check=True, capture_output=True, timeout=900, text=True)
+            
+            if result.stderr:
+                logger.debug(f"Detailed scan stderr: {result.stderr}")
+            
+            logger.info(f"{Colors.OKGREEN}[Progress] Detailed scan completed successfully{Colors.ENDC}")
             return self._parse_nmap_xml('/tmp/detailed_scan.xml')
+            
         except subprocess.TimeoutExpired:
-            logger.error("Detailed scan timed out")
+            logger.error(f"{Colors.FAIL}Detailed scan timed out after 15 minutes{Colors.ENDC}")
+            logger.warning(f"{Colors.WARNING}Attempting to parse partial results...{Colors.ENDC}")
+            
+            # Try to parse partial results if XML file exists
+            try:
+                import os
+                if os.path.exists('/tmp/detailed_scan.xml'):
+                    logger.info(f"{Colors.OKCYAN}Partial scan results found, parsing available data...{Colors.ENDC}")
+                    return self._parse_nmap_xml('/tmp/detailed_scan.xml')
+                else:
+                    logger.error(f"{Colors.FAIL}No scan results available{Colors.ENDC}")
+            except Exception as parse_error:
+                logger.error(f"{Colors.FAIL}Could not parse partial results: {parse_error}{Colors.ENDC}")
+            
+            logger.info(f"{Colors.WARNING}Consider increasing timeout or running manual scan:{Colors.ENDC}")
+            logger.info(f"{Colors.WARNING}  nmap -sV -sC -p {port_list} {self.target}{Colors.ENDC}")
             return {}
+            
+        except subprocess.CalledProcessError as e:
+            logger.error(f"{Colors.FAIL}Detailed scan failed with error code {e.returncode}{Colors.ENDC}")
+            if e.stderr:
+                error_msg = e.stderr.decode() if isinstance(e.stderr, bytes) else e.stderr
+                logger.error(f"{Colors.FAIL}Error details: {error_msg}{Colors.ENDC}")
+                
+                # Provide specific suggestions based on error
+                if 'permission denied' in error_msg.lower():
+                    logger.info(f"{Colors.WARNING}Try running with sudo: sudo python3 htb_auto_pwn.py -t {self.target}{Colors.ENDC}")
+                elif 'host seems down' in error_msg.lower():
+                    logger.info(f"{Colors.WARNING}Target may be blocking ICMP. Try: nmap -Pn {self.target}{Colors.ENDC}")
+            
+            # Try to parse any partial results
+            try:
+                import os
+                if os.path.exists('/tmp/detailed_scan.xml'):
+                    logger.info(f"{Colors.OKCYAN}Attempting to parse partial results...{Colors.ENDC}")
+                    return self._parse_nmap_xml('/tmp/detailed_scan.xml')
+            except:
+                pass
+            
+            return {}
+            
         except Exception as e:
-            logger.error(f"Detailed scan failed: {e}")
+            logger.error(f"{Colors.FAIL}Detailed scan failed: {type(e).__name__}: {e}{Colors.ENDC}")
             return {}
+    
+    def dynamic_targeted_scan(self, ports: List[int], ai_recommendations: Dict) -> Dict:
+        """Perform targeted scans based on AI recommendations"""
+        if not ports or not ai_recommendations:
+            return {}
+        
+        logger.info(f"{Colors.OKBLUE}🎯 Performing AI-guided targeted scans...{Colors.ENDC}")
+        
+        strategy = ai_recommendations.get('strategy', 'standard')
+        recommended_scans = ai_recommendations.get('recommended_scans', {})
+        priority_ports = ai_recommendations.get('priority_ports', [])
+        
+        # Display AI recommendations
+        if priority_ports:
+            logger.info(f"{Colors.OKCYAN}Priority ports: {', '.join(map(str, priority_ports))}{Colors.ENDC}")
+        
+        attack_vectors = ai_recommendations.get('attack_vectors', [])
+        if attack_vectors:
+            logger.info(f"{Colors.OKCYAN}Identified attack vectors:{Colors.ENDC}")
+            for vector in attack_vectors[:3]:  # Show top 3
+                logger.info(f"  • {vector}")
+        
+        # Perform targeted scans on priority ports
+        results = {'targeted_scans': {}}
+        
+        for port in priority_ports:
+            if port not in ports:
+                continue
+            
+            port_str = str(port)
+            if port_str in recommended_scans:
+                logger.info(f"{Colors.OKBLUE}Running targeted scan on port {port}...{Colors.ENDC}")
+                
+                # Parse the recommendation and execute appropriate scan
+                recommendation = recommended_scans[port_str]
+                logger.info(f"{Colors.OKCYAN}AI Recommendation: {recommendation}{Colors.ENDC}")
+                
+                # Execute additional targeted scans based on service
+                scan_result = self._execute_targeted_scan(port, recommendation)
+                if scan_result:
+                    results['targeted_scans'][port] = scan_result
+        
+        return results
+    
+    def _execute_targeted_scan(self, port: int, recommendation: str) -> Dict:
+        """Execute a specific targeted scan based on AI recommendation"""
+        result = {'port': port, 'recommendation': recommendation, 'output': ''}
+        
+        try:
+            # Determine which scripts to run based on the port/service
+            scripts = []
+            
+            if 'ssh' in recommendation.lower():
+                scripts = ['ssh-auth-methods', 'ssh2-enum-algos', 'ssh-hostkey']
+            elif 'http' in recommendation.lower() or 'web' in recommendation.lower():
+                scripts = ['http-enum', 'http-headers', 'http-methods', 'http-robots.txt']
+            elif 'smb' in recommendation.lower():
+                scripts = ['smb-enum-shares', 'smb-enum-users', 'smb-os-discovery']
+            elif 'ftp' in recommendation.lower():
+                scripts = ['ftp-anon', 'ftp-bounce']
+            elif 'mysql' in recommendation.lower():
+                scripts = ['mysql-info', 'mysql-enum']
+            
+            if scripts:
+                script_arg = ','.join(scripts)
+                cmd = [
+                    'nmap', '-p', str(port),
+                    '--script', script_arg,
+                    '-sV',
+                    self.target
+                ]
+                
+                logger.info(f"{Colors.OKCYAN}Running scripts: {script_arg}{Colors.ENDC}")
+                scan_result = subprocess.run(cmd, capture_output=True, timeout=120, text=True)
+                result['output'] = scan_result.stdout
+                
+                logger.info(f"{Colors.OKGREEN}✓ Targeted scan completed for port {port}{Colors.ENDC}")
+            
+        except subprocess.TimeoutExpired:
+            logger.warning(f"{Colors.WARNING}Targeted scan timed out for port {port}{Colors.ENDC}")
+        except Exception as e:
+            logger.debug(f"Targeted scan failed for port {port}: {e}")
+        
+        return result
     
     def _parse_nmap_xml(self, xml_file: str) -> Dict:
         """Parse nmap XML output"""
@@ -472,15 +952,20 @@ class Exploiter:
 class HTBAutoPwn:
     """Main orchestration class"""
     
-    def __init__(self, target: str, output_file: Optional[str] = None):
+    def __init__(self, target: str, output_file: Optional[str] = None, use_ai: bool = False, verbose: bool = False):
         self.target = target
         self.output_file = output_file or f'htb_results_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json'
+        self.use_ai = use_ai
+        self.verbose = verbose
+        self.ai_analyzer = AIAnalyzer(verbose=verbose) if use_ai else None
         self.results = {
             'target': target,
             'timestamp': datetime.now().isoformat(),
             'scan_results': {},
             'vulnerabilities': [],
-            'flags': []
+            'flags': [],
+            'ai_analysis': {},
+            'exploit_suggestions': {}
         }
     
     def run(self):
@@ -492,7 +977,7 @@ class HTBAutoPwn:
         
         # Phase 1: Network Scanning
         logger.info(f"\n{Colors.BOLD}[PHASE 1] Network Scanning{Colors.ENDC}")
-        scanner = NetworkScanner(self.target)
+        scanner = NetworkScanner(self.target, self.ai_analyzer)
         
         quick_results = scanner.quick_scan()
         if not quick_results or not quick_results.get('ports'):
@@ -505,18 +990,55 @@ class HTBAutoPwn:
         detailed_results = scanner.detailed_scan(open_ports)
         self.results['scan_results'] = detailed_results
         
+        # AI Analysis of scan results
+        if self.ai_analyzer and self.ai_analyzer.enabled:
+            logger.info(f"\n{Colors.BOLD}[PHASE 1.5] AI-Powered Analysis{Colors.ENDC}")
+            ai_analysis = self.ai_analyzer.analyze_scan_results(detailed_results)
+            self.results['ai_analysis'] = ai_analysis
+            
+            # Perform dynamic targeted scans based on AI recommendations
+            if ai_analysis.get('priority_ports'):
+                targeted_results = scanner.dynamic_targeted_scan(open_ports, ai_analysis)
+                self.results['targeted_scans'] = targeted_results
+        
         # Phase 2: Vulnerability Detection
         logger.info(f"\n{Colors.BOLD}[PHASE 2] Vulnerability Detection{Colors.ENDC}")
         detector = VulnerabilityDetector(detailed_results)
         vulnerabilities = detector.analyze()
         self.results['vulnerabilities'] = vulnerabilities
         
+        # Add AI-identified vulnerabilities
+        if self.results.get('ai_analysis', {}).get('vulnerabilities'):
+            logger.info(f"{Colors.OKCYAN}AI-identified potential vulnerabilities:{Colors.ENDC}")
+            for vuln in self.results['ai_analysis']['vulnerabilities'][:5]:
+                logger.info(f"  • {vuln}")
+        
         logger.info(f"{Colors.OKGREEN}Found {len(vulnerabilities)} potential vulnerabilities{Colors.ENDC}")
         for vuln in vulnerabilities:
             logger.info(f"  - {vuln.get('type')} on port {vuln.get('port')} (Severity: {vuln.get('severity')})")
         
+        # Get AI exploit suggestions for each vulnerability
+        if self.ai_analyzer and self.ai_analyzer.enabled and vulnerabilities:
+            logger.info(f"\n{Colors.BOLD}[PHASE 2.5] AI Exploit Analysis{Colors.ENDC}")
+            logger.info(f"{Colors.OKCYAN}Getting exploit suggestions for {len(vulnerabilities)} vulnerabilities...{Colors.ENDC}\n")
+            
+            for vuln in vulnerabilities:
+                vuln_key = f"{vuln.get('type')}_{vuln.get('port')}"
+                exploit_suggestions = self.ai_analyzer.suggest_exploits_for_vulnerability(vuln, self.target)
+                self.results['exploit_suggestions'][vuln_key] = exploit_suggestions
+        
         # Phase 3: Exploitation
         logger.info(f"\n{Colors.BOLD}[PHASE 3] Exploitation{Colors.ENDC}")
+        
+        # Get AI exploitation strategy
+        if self.ai_analyzer and self.ai_analyzer.enabled and vulnerabilities:
+            exploitation_strategy = self.ai_analyzer.suggest_exploitation_strategy(vulnerabilities, self.target)
+            if exploitation_strategy.get('exploitation_order'):
+                logger.info(f"{Colors.OKCYAN}🎯 AI-recommended exploitation order:{Colors.ENDC}")
+                for idx, item in enumerate(exploitation_strategy['exploitation_order'][:3], 1):
+                    logger.info(f"  {idx}. {item}")
+            self.results['exploitation_strategy'] = exploitation_strategy
+        
         exploiter = Exploiter(self.target, vulnerabilities)
         flags = exploiter.exploit()
         self.results['flags'] = flags
@@ -570,6 +1092,7 @@ Examples:
     parser.add_argument('-t', '--target', required=True, help='Target IP address or hostname')
     parser.add_argument('-o', '--output', help='Output file for results (JSON)')
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbose output')
+    parser.add_argument('--ai', action='store_true', help='Enable AI-powered analysis (requires OPENAI_API_KEY)')
     
     args = parser.parse_args()
     
@@ -654,7 +1177,7 @@ Examples:
             return
     
     # Run the automation
-    autopwn = HTBAutoPwn(args.target, args.output)
+    autopwn = HTBAutoPwn(args.target, args.output, use_ai=args.ai, verbose=args.verbose)
     autopwn.run()
 
 

