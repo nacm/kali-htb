@@ -2,6 +2,8 @@
 
 This guide will help you set up the AI-powered features of HTB Auto Pwn.
 
+**Important:** AI mode is **enabled by default** for best results. This guide helps you configure it.
+
 ## Prerequisites
 
 - Python 3.7 or higher
@@ -85,15 +87,36 @@ source ~/.zshrc
 
 ## Step 4: Test AI Features
 
-Run a scan with AI enabled:
+Run a scan - AI is enabled by default:
 
 ```bash
-python3 htb_auto_pwn.py -t 10.10.10.100 --ai
+python3 htb_auto_pwn.py -t 10.10.10.100
 ```
 
 You should see:
 ```
-[INFO] AI-powered analysis enabled
+[INFO] 🤖 AI-powered analysis enabled (DEFAULT MODE)
+[INFO]     All phases will be dynamically adjusted based on AI recommendations
+```
+
+### If AI is Not Working
+
+If you see warnings about AI being disabled:
+```
+[WARNING] ⚠️  OPENAI_API_KEY not set. Running in standard mode.
+[INFO]     Set API key in .env file or environment variable
+```
+
+Then check your setup:
+1. Verify `.env` file exists: `ls -la .env`
+2. Check API key is set: `cat .env | grep OPENAI_API_KEY`
+3. Ensure python-dotenv is installed: `pip list | grep dotenv`
+
+### Explicitly Disable AI
+
+If you want to run without AI:
+```bash
+python3 htb_auto_pwn.py -t 10.10.10.100 --no-ai
 ```
 
 ## What AI Features Provide
@@ -251,15 +274,19 @@ Recommended Tools:
 
 ## Disabling AI Features
 
-AI features are **opt-in** and disabled by default. Simply omit the `--ai` flag to use standard scanning without AI.
+AI features are **enabled by default** for optimal results. To disable AI:
 
 ```bash
-# Standard scan (no AI)
-python3 htb_auto_pwn.py -t 10.10.10.100
-
-# AI-powered scan
-python3 htb_auto_pwn.py -t 10.10.10.100 --ai
+# Run without AI
+python3 htb_auto_pwn.py -t 10.10.10.100 --no-ai
 ```
+
+**Why disable AI?**
+- Privacy concerns (scan data sent to OpenAI)
+- No internet connection available
+- API rate limits reached
+- Testing traditional scanning methods
+- API cost management
 
 ## Privacy & Security
 

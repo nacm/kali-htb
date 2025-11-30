@@ -4,13 +4,14 @@ A comprehensive automated penetration testing tool for Hack The Box (HTB) machin
 
 ## 🎯 Features
 
+- **AI-Powered by Default**: OpenAI GPT-4 integration for intelligent analysis and dynamic decision-making
 - **Automated Network Scanning**: Uses nmap for port discovery and service enumeration
-- **AI-Powered Analysis**: OpenAI integration for intelligent scan analysis and dynamic scanning (optional)
+- **Dynamic Phase Execution**: All phases adapt based on AI recommendations
 - **Vulnerability Detection**: Identifies common security weaknesses across multiple protocols
-- **Dynamic Scanning Strategy**: Adjusts scan approach based on AI recommendations
-- **Automated Exploitation**: Attempts exploitation based on detected vulnerabilities
+- **Dynamic Scanning Strategy**: Adjusts scan approach in real-time based on AI analysis
+- **Automated Exploitation**: Attempts exploitation based on AI-suggested strategies
 - **Flag Extraction**: Automatically extracts and reports flags from various sources
-- **Comprehensive Logging**: Detailed logging of all activities
+- **Comprehensive Logging**: Detailed logging of all activities including AI interactions
 - **JSON Output**: Structured results for further analysis
 
 ## 🔧 Supported Services & Attacks
@@ -73,11 +74,11 @@ sudo apt-get install -y \
 
 ### Python Requirements
 
-Python 3.7 or higher is required. The script uses only standard library modules.
+Python 3.7 or higher is required.
 
-**Optional: AI-Powered Analysis**
+**AI-Powered Analysis (Default Mode)**
 
-For AI-powered intelligent analysis and dynamic scanning:
+The tool runs in AI mode by default for best results. To enable AI features:
 
 **Quick Setup (Recommended):**
 ```bash
@@ -106,7 +107,10 @@ echo 'export OPENAI_API_KEY="your-api-key-here"' >> ~/.bashrc
 
 Get your API key from: https://platform.openai.com/api-keys
 
-**Note:** The `.env` file is automatically loaded and is included in `.gitignore` for security.
+**Note:** 
+- The `.env` file is automatically loaded and is included in `.gitignore` for security
+- If AI setup is incomplete, the tool falls back to standard mode automatically
+- Use `--no-ai` flag to explicitly disable AI mode
 
 ## 🚀 Installation
 
@@ -123,7 +127,7 @@ chmod +x htb_auto_pwn.py
 ### Basic Usage
 
 ```bash
-# Scan a target IP (will prompt to install missing tools if needed)
+# Scan a target IP (AI mode by default)
 python3 htb_auto_pwn.py -t 10.10.10.100
 
 # Scan with custom output file
@@ -132,11 +136,11 @@ python3 htb_auto_pwn.py -t 10.10.10.100 -o my_results.json
 # Verbose mode for detailed logging
 python3 htb_auto_pwn.py -t 10.10.10.100 -v
 
-# Enable AI-powered analysis for intelligent scanning
-python3 htb_auto_pwn.py -t 10.10.10.100 --ai
+# Disable AI mode (use standard scanning only)
+python3 htb_auto_pwn.py -t 10.10.10.100 --no-ai
 
-# Combine AI with verbose output
-python3 htb_auto_pwn.py -t 10.10.10.100 --ai -v -o results.json
+# Combine options
+python3 htb_auto_pwn.py -t 10.10.10.100 -v -o results.json
 ```
 
 ### Automatic Tool Installation
@@ -166,12 +170,12 @@ Would you like to install missing tools now? (y/n): y
 -t, --target    Target IP address or hostname (required)
 -o, --output    Output file for results in JSON format
 -v, --verbose   Enable verbose output for debugging
---ai            Enable AI-powered analysis (requires OPENAI_API_KEY)
+--no-ai         Disable AI-powered analysis (AI is enabled by default)
 ```
 
-### AI-Powered Features
+### AI-Powered Features (Default Mode)
 
-When enabled with `--ai`, the tool leverages OpenAI's GPT-4 to:
+The tool uses OpenAI's GPT-4 by default for:
 
 1. **Analyze Scan Results**: Intelligently interprets nmap output to identify promising attack vectors
 2. **Dynamic Scanning**: Performs targeted scans on priority services based on AI recommendations

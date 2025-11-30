@@ -2,6 +2,8 @@
 
 This file contains example usage scenarios and expected outputs for the HTB Auto Pwn tool.
 
+**Note:** AI mode is enabled by default. All examples use AI unless explicitly disabled with `--no-ai`.
+
 ## Example 0: First Run with Missing Tools
 
 ### Command
@@ -35,12 +37,14 @@ Would you like to install missing tools now? (y/n): y
 - Enter `n` or `no` to continue without installing (limited functionality)
 - Press `Ctrl+C` to cancel and exit
 
-## Example 1: Basic Scan
+## Example 1: Basic Scan (AI Mode - Default)
 
 ### Command
 ```bash
 python3 htb_auto_pwn.py -t 10.10.10.3
 ```
+
+**Note:** This automatically uses AI mode. No `--ai` flag needed!
 
 ### Expected Flow
 1. Quick scan discovers open ports (21, 22, 80)
@@ -80,13 +84,49 @@ FLAGS DISCOVERED:
   ✓ 5f4dcc3b5aa765d61d8327deb882cf99 (from FTP)
 ```
 
-## Example 1.5: AI-Powered Scan
+## Example 1.5: Standard Mode (No AI)
 
 ### Command
 ```bash
-export OPENAI_API_KEY='sk-...'
-python3 htb_auto_pwn.py -t 10.10.10.3 --ai -v
+python3 htb_auto_pwn.py -t 10.10.10.3 --no-ai
 ```
+
+**Use Case:** When you want traditional scanning without AI assistance or don't have an API key set up.
+
+### Output
+```
+╔══════════════════════════════════════════════╗
+║   HTB Automated Flag Reveal System          ║
+║   Target: 10.10.10.3                        ║
+╚══════════════════════════════════════════════╝
+
+[WARNING] AI mode disabled by user. Running in standard mode.
+
+[PHASE 1] Network Scanning
+[INFO] Starting quick port scan on 10.10.10.3
+[INFO] Open ports found: [21, 22, 80]
+[INFO] Running detailed scan on ports: 21,22,80
+
+[PHASE 2] Vulnerability Detection
+[INFO] Analyzing for vulnerabilities...
+[INFO] Found 3 potential vulnerabilities
+  - ftp_anonymous on port 21 (Severity: high)
+  - ssh on port 22 (Severity: medium)
+  - web on port 80 (Severity: medium)
+
+[PHASE 3] Exploitation
+[INFO] Starting exploitation phase...
+[INFO] [FLAG FOUND] FTP: 5f4dcc3b5aa765d61d8327deb882cf99
+```
+
+## Example 2: AI-Enhanced Full Scan
+
+### Command
+```bash
+python3 htb_auto_pwn.py -t 10.10.10.3 -v -o results.json
+```
+
+**Note:** AI is automatically enabled. The `-v` flag shows detailed AI interactions.
 
 ### AI-Enhanced Output
 ```
